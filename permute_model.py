@@ -39,9 +39,16 @@ def permute_weights(
     # Determine hidden dimension from state dict
     hidden_dim = state[f"layers.{layer}.weight"].shape[0]
 
-    # Generate random permutation
+    # Generate custom swap permutation
     torch.manual_seed(seed)
-    perm = torch.randperm(hidden_dim)
+    perm = torch.arange(hidden_dim)
+    num_swaps = int(hidden_dim * 0.05)
+    swap_indices = torch.randperm(hidden_dim)[:num_swaps * 2]
+    swap_indices = swap_indices.view(-1, 2)
+
+    for i, j in swap_indices:
+        i, j = int(i), int(j)
+        perm[i], perm[j] = perm[j], perm[i]
 
     # Apply permutation to layer weights (rows)
     state[f"layers.{layer}.weight"] = state[f"layers.{layer}.weight"][perm]

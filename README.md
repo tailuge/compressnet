@@ -2,6 +2,8 @@
 
 A minimal, robust demonstration of neural network symmetry using Multilayer Perceptrons (MLPs).
 
+[results](results.md)
+
 ## Overview
 
 This project empirically verifies **permutation invariance** in neural networks. In an MLP, hidden neurons can be reordered at any layer without changing the model's output, provided that the corresponding weights in the downstream layer are permuted accordingly.
