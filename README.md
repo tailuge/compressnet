@@ -1,0 +1,2 @@
+# compressnet
+permute weights
