@@ -29,6 +29,18 @@ Neural network weights are coupled in "blocks" (neurons). You can reorder the bl
 - **Bias Sorting**: Sorting neurons by their bias value ($b_i$) creates a perfectly ascending "staircase" in the bias plot and groups associated weights.
 - **2D Sorting**: By permuting Layer $N-1$, you sort the **columns** of Layer $N$. By permuting Layer $N$, you sort the **rows** of Layer $N$. Propagating this forward allows you to "smooth" the weight matrices across the entire network.
 
+### Row-Major Data Layout
+The visualization in `results.md` represents the flattened weight matrix in **row-major order**. For a layer with $M$ neurons and $N$ inputs:
+- The first $N$ indices on the X-axis (0–15) are the weights of **Neuron 0**.
+- The next $N$ indices (16–31) are **Neuron 1**, and so on.
+
+### The "Family" Constraint
+Permutation invariance allows us to reorder entire **rows** (neurons) and entire **columns** (input features). 
+- **Row Permutation**: Moves 16-element "blocks" as atomic units.
+- **Column Permutation**: Reorders the 16 elements *inside every block* simultaneously (i.e., you must use the same index order for all neurons).
+
+Because every neuron block must share the same internal column order, you cannot achieve a perfectly monotonic "flat" list while maintaining output invariance. **2D Sorting** is the physical limit of how "ordered" the weights can appear.
+
 ## Installation
 
 This project uses `uv` for fast, reproducible dependency management.
@@ -54,13 +66,16 @@ python create_master.py
 ### 2. Permute and Sort
 Applies bias-based sorting to hidden layers. You can permute a single layer or the entire model.
 ```bash
-# Permute all hidden layers (1-6)
+# Permute all hidden layers (1-6) using weight-mean sorting
 python permute_model.py --all
 
-# Or permute a specific layer
+# Apply 2D sorting (rows AND columns) to a specific layer
+python permute_model.py --layer-2d 4
+
+# Or permute a specific layer (1D)
 python permute_model.py --layer 2
 ```
-*Creates `modified_all.pt` or `modified_layer_2.pt`.*
+*Creates `modified_all.pt`, `modified_layer_4_2d.pt`, or `modified_layer_2.pt`.*
 
 ### 3. Verify Equivalence
 ```bash
