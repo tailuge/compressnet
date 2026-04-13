@@ -18,6 +18,17 @@ $W_{i+1} y_i = W_{i+1} P^{-1} y_i'$
 
 Thus, we must adjust $W_{i+1}$ to $W_{i+1} P^{-1}$ (which, for a permutation matrix $P$, is $W_{i+1} P^T$). In code, this corresponds to reordering the columns of $W_{i+1}$ using the same permutation used for the rows of $W_i$.
 
+## Canonicalization & Sorting
+
+While any permutation of hidden neurons maintains output invariance, we can use this symmetry to "canonicalize" a model by sorting neurons into a standard order.
+
+### The Sorting Constraint
+Neural network weights are coupled in "blocks" (neurons). You can reorder the blocks (rows of $W_i$), but you cannot independently sort every individual weight entry without changing the model's output.
+
+### Strategies
+- **Bias Sorting**: Sorting neurons by their bias value ($b_i$) creates a perfectly ascending "staircase" in the bias plot and groups associated weights.
+- **2D Sorting**: By permuting Layer $N-1$, you sort the **columns** of Layer $N$. By permuting Layer $N$, you sort the **rows** of Layer $N$. Propagating this forward allows you to "smooth" the weight matrices across the entire network.
+
 ## Installation
 
 This project uses `uv` for fast, reproducible dependency management.
@@ -40,19 +51,29 @@ python create_master.py
 ```
 *Creates `master.pt`.*
 
-### 2. Permute a Layer
-Applies a random permutation to a chosen hidden layer and fixes downstream weights.
+### 2. Permute and Sort
+Applies bias-based sorting to hidden layers. You can permute a single layer or the entire model.
 ```bash
+# Permute all hidden layers (1-6)
+python permute_model.py --all
+
+# Or permute a specific layer
 python permute_model.py --layer 2
 ```
-*Creates `modified_layer_2.pt`.*
+*Creates `modified_all.pt` or `modified_layer_2.pt`.*
 
 ### 3. Verify Equivalence
-Compares the outputs of the master and permuted model on random inputs.
 ```bash
-python test_compare.py --mutant modified_layer_2.pt
+python test_compare.py --mutant modified_all.pt
 ```
 *Should print `PASS` with a max difference ≈ 0.*
+
+### 4. Visualize Results
+Generates high-density dual-axis plots of weights and biases.
+```bash
+python publish.py --mutant modified_all.pt
+```
+*Updates `results.md` with the new plots.*
 
 ## Project Structure
 
