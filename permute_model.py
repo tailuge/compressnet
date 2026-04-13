@@ -27,10 +27,14 @@ def get_swap_permutation(hidden_dim: int, seed: int) -> torch.Tensor:
     return perm
 
 
-def get_sort_permutation(biases: torch.Tensor) -> torch.Tensor:
-    """Generate a permutation that sorts neurons by their bias values."""
-    # Sort by the bias of each neuron
-    return torch.argsort(biases)
+def get_sort_permutation(values: torch.Tensor) -> torch.Tensor:
+    """Generate a permutation that sorts neurons by the provided values.
+
+    Handles 1D (bias) or 2D (weight) tensors. If 2D, sorts by row-wise mean.
+    """
+    if values.dim() == 2:
+        values = values.mean(dim=1)
+    return torch.argsort(values)
 
 
 def permute_weights(
@@ -59,8 +63,8 @@ def permute_weights(
     # Determine hidden dimension from state dict
     hidden_dim = state[f"layers.{layer}.weight"].shape[0]
 
-    # Use the bias-sorting strategy
-    perm = get_sort_permutation(state[f"layers.{layer}.bias"])
+    # Use the weight-sorting strategy
+    perm = get_sort_permutation(state[f"layers.{layer}.weight"])
 
     # Apply permutation to layer weights (rows)
     state[f"layers.{layer}.weight"] = state[f"layers.{layer}.weight"][perm]
@@ -106,8 +110,8 @@ def permute_all_layers(
     print(f"Permuting layers 1 through {num_hidden-1}...")
 
     for layer in range(1, num_hidden):
-        # 1. Get sorting permutation based on current biases
-        perm = get_sort_permutation(state[f"layers.{layer}.bias"])
+        # 1. Get sorting permutation based on current weights
+        perm = get_sort_permutation(state[f"layers.{layer}.weight"])
         
         # 2. Apply to current layer (rows and bias)
         state[f"layers.{layer}.weight"] = state[f"layers.{layer}.weight"][perm]
@@ -124,6 +128,60 @@ def permute_all_layers(
     return target_path
 
 
+
+def permute_layer_2d(
+    source_path: str = "master.pt",
+    layer: int = 4,
+) -> str:
+    """Canonicalize a layer in 2D (rows and columns).
+
+    Permutes target layer neurons to sort rows by bias,
+    and permutes previous layer neurons to sort target layer columns.
+
+    Args:
+        source_path: Path to source model weights.
+        layer: Index of the layer to sort (must be > 0).
+
+    Returns:
+        Path to the saved 2D-permuted weights file.
+    """
+    if layer <= 0:
+        raise ValueError("2D sorting requires a previous hidden layer (layer > 0)")
+
+    state = torch.load(source_path, weights_only=True)
+
+    # 1. Sort ROWS of target layer N (by target weight mean)
+    perm_n = get_sort_permutation(state[f"layers.{layer}.weight"])
+    
+    # Apply Row Sort to Layer N
+    state[f"layers.{layer}.weight"] = state[f"layers.{layer}.weight"][perm_n]
+    state[f"layers.{layer}.bias"] = state[f"layers.{layer}.bias"][perm_n]
+    
+    # Adjust downstream (Layer N+1 columns)
+    next_layer = layer + 1
+    if next_layer < len([k for k in state if "weight" in k]):
+        state[f"layers.{next_layer}.weight"] = state[f"layers.{next_layer}.weight"][:, perm_n]
+
+    # 2. Sort COLUMNS of target layer N (by permuting Layer N-1)
+    # Criterion: Mean contribution of each input neuron to target layer weights
+    col_means = state[f"layers.{layer}.weight"].mean(dim=0)
+    perm_prev = torch.argsort(col_means)
+    
+    # Apply Column Sort to Layer N (permutes columns)
+    state[f"layers.{layer}.weight"] = state[f"layers.{layer}.weight"][:, perm_prev]
+    
+    # Adjust upstream (Layer N-1 rows and bias)
+    prev_layer = layer - 1
+    state[f"layers.{prev_layer}.weight"] = state[f"layers.{prev_layer}.weight"][perm_prev]
+    state[f"layers.{prev_layer}.bias"] = state[f"layers.{prev_layer}.bias"][perm_prev]
+
+    target_path = f"modified_layer_{layer}_2d.pt"
+    torch.save(state, target_path)
+    print(f"Saved {target_path}")
+
+    return target_path
+
+
 def main() -> None:
     """Main entry point for weight permutation."""
     parser = argparse.ArgumentParser(description="Permute model weights")
@@ -133,11 +191,18 @@ def main() -> None:
     )
     parser.add_argument("--seed", type=int, default=42, help="Random seed for permutation")
     parser.add_argument("--all", action="store_true", help="Permute all hidden layers")
+    parser.add_argument("--layer-2d", type=int, help="Apply 2D sorting to a specific layer")
     args = parser.parse_args()
 
     if args.all:
         print("Applying permutation to ALL layers...")
         path = permute_all_layers(args.source, args.seed)
+        print(f"Done: {path}")
+        return
+
+    if args.layer_2d is not None:
+        print(f"Applying 2D sorting to layer {args.layer_2d}...")
+        path = permute_layer_2d(args.source, args.layer_2d)
         print(f"Done: {path}")
         return
 
