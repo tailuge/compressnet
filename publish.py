@@ -1,6 +1,6 @@
-"""Publish results by plotting weight comparisons.
+"""Publish results by plotting weight and bias comparisons.
 
-Caveman style: Me load weights. Me draw small graphs for all layers. Me write clean MD.
+Caveman style: Me load weights. Me load bias. Me repeat bias to match weights. Me draw two-axis graph.
 """
 
 import argparse
@@ -20,18 +20,48 @@ def publish(master_path, mutant_path):
     png_paths = []
     
     for i, key in enumerate(weight_keys):
-        # 1. Get weights and flatten
-        w_master = master_state[key].flatten().numpy()
-        w_mutant = mutant_state[key].flatten().numpy()
+        bias_key = key.replace("weight", "bias")
+        
+        # 1. Get weights and biases
+        w_master = master_state[key]
+        w_mutant = mutant_state[key]
+        b_master = master_state[bias_key]
+        b_mutant = mutant_state[bias_key]
 
-        # 2. Draw small graph
-        plt.figure(figsize=(10, 1.0)) # Further reduced height
-        plt.plot(w_master, label="Master", alpha=0.8, linewidth=0.8)
-        plt.plot(w_mutant, label="Mutant", alpha=0.8, linewidth=0.8, linestyle="--")
+        # 2. Align bias with weights (repeat each bias N times where N is input_dim)
+        # Weights shape: (out_features, in_features)
+        n_inputs = w_master.shape[1]
+        b_master_stepped = b_master.repeat_interleave(n_inputs).numpy()
+        b_mutant_stepped = b_mutant.repeat_interleave(n_inputs).numpy()
+        
+        w_master_flat = w_master.flatten().numpy()
+        w_mutant_flat = w_mutant.flatten().numpy()
+
+        # 3. Draw dual-axis graph
+        fig, ax1 = plt.subplots(figsize=(10, 1.2))
+        
+        # Weights on Primary Axis
+        ax1.plot(w_master_flat, label="W Master", alpha=0.6, linewidth=0.7, color='tab:blue')
+        ax1.plot(w_mutant_flat, label="W Mutant", alpha=0.6, linewidth=0.7, color='tab:blue', linestyle="--")
+        ax1.set_ylabel("Weights", fontsize=6, color='tab:blue')
+        ax1.tick_params(axis='y', labelcolor='tab:blue', labelsize=5)
+        ax1.tick_params(axis='x', labelsize=6)
+        
+        # Biases on Secondary Axis
+        ax2 = ax1.twinx()
+        ax2.plot(b_master_stepped, label="B Master", alpha=0.9, linewidth=1.0, color='tab:red')
+        ax2.plot(b_mutant_stepped, label="B Mutant", alpha=0.9, linewidth=1.0, color='tab:red', linestyle=":")
+        ax2.set_ylabel("Bias", fontsize=6, color='tab:red')
+        ax2.tick_params(axis='y', labelcolor='tab:red', labelsize=5)
+        
         plt.title(f"Layer {i}: {key}", fontsize=8, pad=2)
-        plt.legend(fontsize=6, loc='upper right', frameon=False)
-        plt.tick_params(axis='both', which='major', labelsize=6)
-        plt.grid(True, alpha=0.2)
+        
+        # Combined Legend
+        lines1, labels1 = ax1.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        ax1.legend(lines1 + lines2, labels1 + labels2, fontsize=5, loc='upper right', frameon=False, ncol=2)
+        
+        ax1.grid(True, alpha=0.1)
         plt.tight_layout(pad=0.2)
         
         png_path = f"results_layer_{i}.png"
@@ -40,21 +70,20 @@ def publish(master_path, mutant_path):
         png_paths.append(png_path)
         print(f"Saved {png_path}")
 
-    # 3. Write MD - minimal text
+    # 4. Write MD - minimal text
     md_path = "results.md"
     with open(md_path, "w") as f:
         f.write("# Results\n\n")
-        f.write(f"Compare `{master_path}` vs `{mutant_path}`\n\n")
+        f.write(f"Compare `{master_path}` vs `{mutant_path}` (Sorted by Bias)\n\n")
         for png in png_paths:
             f.write(f"![{png}]({png})\n\n")
     
     print(f"Updated {md_path}")
 
 def main():
-    parser = argparse.ArgumentParser(description="Publish all weight graphs")
+    parser = argparse.ArgumentParser(description="Publish all weight and bias graphs")
     parser.add_argument("--master", default="master.pt", help="Master weights")
     parser.add_argument("--mutant", required=True, help="Mutant weights")
-    # Removed --layer since we do all now
     args = parser.parse_args()
 
     publish(args.master, args.mutant)

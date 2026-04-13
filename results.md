@@ -1,6 +1,6 @@
 # Results
 
-Compare `master.pt` vs `modified_layer_0.pt`
+Compare `master.pt` vs `modified_all.pt` (Sorted by Bias)
 
 ![results_layer_0.png](results_layer_0.png)
 
