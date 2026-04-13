@@ -1,0 +1,8 @@
+{
+  "track_id": "setup_model_20260413",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-04-13T12:00:00Z",
+  "updated_at": "2026-04-13T12:00:00Z",
+  "description": "First create model script, then cp weights from master to mut1 then create comparison script should prove identical. After all that is proven then work on permute"
+}
